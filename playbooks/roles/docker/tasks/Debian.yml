@@ -1,0 +1,66 @@
+---
+- name: upgrade pyopenssl #otherwise next step fails
+  pip:
+    name: pyopenssl
+  ignore_errors: true
+  environment:
+    PIP_BREAK_SYSTEM_PACKAGES: 1
+
+- name: Install pre-requisites
+  apt:
+    name: ['apt-transport-https', 'ca-certificates', 'curl', 'software-properties-common']
+  register: res
+  retries: 5
+  until: res is success
+
+- name: add docker repo key
+  apt_key:
+    url: https://download.docker.com/linux/ubuntu/gpg
+    state: present
+
+- name: create docker repo
+  apt_repository:
+    repo: "deb [arch=amd64] https://download.docker.com/linux/ubuntu {{ ansible_distribution_release }} stable"
+    state: present
+
+- name: install docker for ubuntu18
+  apt:
+    name:
+      - "docker-ce=18.06.3~ce~3-0~ubuntu"
+      - docker-compose
+      - docker-compose-plugin
+      - python3-requests
+    state: present
+    update_cache: yes
+  when: ansible_distribution_major_version|int == 18
+  register: res
+  retries: 5
+  until: res is success
+
+- name: install docker for ubuntu20
+  apt:
+    name:
+      - "docker-ce=5:24.0.7-1~ubuntu.20.04~focal"
+      - docker-compose
+      - docker-compose-plugin
+      - python3-requests
+    state: present
+    update_cache: yes
+  when: ansible_distribution_major_version|int == 20
+  register: res
+  retries: 5
+  until: res is success
+
+- name: install docker for other ubuntu
+  apt:
+    name:
+      - docker-ce
+      - docker-compose
+      - docker-compose-plugin
+      - python3-requests
+    state: present
+    update_cache: yes
+  when: ansible_distribution_major_version|int != 20 and ansible_distribution_major_version|int != 18
+  register: res
+  retries: 5
+  until: res is success

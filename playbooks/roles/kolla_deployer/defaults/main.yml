@@ -1,0 +1,43 @@
+---
+
+kolla_config: {}
+default_openstack_sku: "yoga"
+openstack_sku: >-
+    {%- if contrail_configuration.OPENSTACK_VERSION is defined -%}
+      {{ contrail_configuration.OPENSTACK_VERSION }}
+    {%- elif kolla_config.kolla_globals is defined and kolla_config.kolla_globals.openstack_release is defined -%}
+      {{ kolla_config.kolla_globals.openstack_release }}
+    {%- else -%}
+      {{ default_openstack_sku }}
+    {%- endif -%}
+
+# dynamic map - must be edited twice per year
+kolla_vanilla_tags:
+  "xena": "xena-eol"
+  "yoga": "yoga-eol"
+  "zed": "zed-eol"
+  "2023.1": "unmaintained/2023.1"
+  "2023.2": "stable/2023.2"
+  "2024.1": "stable/2024.1"
+  "2024.2": "stable/2024.2"
+
+contrail_kolla_dir: "{{ playbook_dir }}/../../contrail-kolla-ansible"
+vanilla_kolla_dir: "{{ playbook_dir}}/../../kolla-ansible"
+kolla_mode: >-
+    {%- if contrail_configuration.KOLLA_MODE is defined -%}
+      {{ contrail_configuration.KOLLA_MODE }}
+    {%- else -%}
+      {{ 'patched' }}
+    {%- endif -%}
+force_clone: >-
+    {%- if kolla_config.kolla_globals is defined and kolla_config.kolla_globals.force_clone is defined -%}
+      {{ kolla_config.kolla_globals.force_clone }}
+    {%- else -%}
+      no
+    {%- endif -%}
+skip_checkout: >-
+    {%- if kolla_config.kolla_globals is defined and kolla_config.kolla_globals.skip_checkout is defined -%}
+      {{ kolla_config.kolla_globals.skip_checkout }}
+    {%- else -%}
+      no
+    {%- endif -%}

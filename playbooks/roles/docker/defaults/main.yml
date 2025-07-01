@@ -1,0 +1,3 @@
+nix_docker_config_directory: /etc/docker
+nix_docker_config_file: "{{ nix_docker_config_directory }}/daemon.json"
+nix_docker_certs_directory: /etc/docker/certs.d

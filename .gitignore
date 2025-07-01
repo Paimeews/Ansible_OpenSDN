@@ -1,0 +1,7 @@
+playbooks/*.retry
+*.pyc
+playbooks/test.yml
+.project
+.vscode
+*.egg-info
+__pycache__

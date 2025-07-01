@@ -1,0 +1,8 @@
+---
+- name: stop contrail analytics_alarm
+  docker_compose:
+    project_src: /etc/contrail/analytics_alarm
+    state: absent
+  environment:
+    DOCKER_CLIENT_TIMEOUT: '120'
+    COMPOSE_HTTP_TIMEOUT: '120'

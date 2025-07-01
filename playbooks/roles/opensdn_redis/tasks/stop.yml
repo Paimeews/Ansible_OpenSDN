@@ -1,0 +1,8 @@
+---
+- name: "stop redis"
+  docker_compose:
+    project_src: /etc/contrail/redis
+    state: absent
+  environment:
+    DOCKER_CLIENT_TIMEOUT: '120'
+    COMPOSE_HTTP_TIMEOUT: '120'

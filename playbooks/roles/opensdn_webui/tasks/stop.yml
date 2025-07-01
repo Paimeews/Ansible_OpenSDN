@@ -1,0 +1,7 @@
+- name: "stop contrail webui"
+  docker_compose:
+    project_src: /etc/contrail/webui
+    state: absent
+  environment:
+    DOCKER_CLIENT_TIMEOUT: '120'
+    COMPOSE_HTTP_TIMEOUT: '120'

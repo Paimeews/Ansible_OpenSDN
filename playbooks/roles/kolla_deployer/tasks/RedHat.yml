@@ -1,0 +1,18 @@
+---
+
+- name: install gcc package required by kolla playbooks
+  yum:
+    name: "gcc"
+    state: present
+
+- name: install python-devel package required by kolla playbooks (py2)
+  yum:
+    name: "python-devel"
+    state: present
+  when: ansible_python.version.major < 3
+
+- name: install python3-devel package required by kolla playbooks (py3)
+  yum:
+    name: python3-devel
+    state: present
+  when: ansible_python.version.major == 3

@@ -1,0 +1,118 @@
+---
+- name: set instance data
+  set_fact:
+    instance_data: "{{ instances[hostvars[inventory_hostname].instance_name] }}"
+
+- name: set vrouter data
+  set_fact:
+    vrouter_data: "{{ hostvars[inventory_hostname].instance_data.roles.vrouter }}"
+  when: hostvars[inventory_hostname].instance_data.roles is defined and
+        hostvars[inventory_hostname].instance_data.roles.vrouter is defined
+
+- name: set provider data
+  set_fact:
+    provider_data: "{{ provider_config[instance_data.provider] }}"
+  when: provider_config[instance_data.provider] is defined
+
+- name: turn off swap
+  shell: swapoff -a && sed -ri '/\sswap\s/s/^#?/#/' /etc/fstab
+  when: hostvars[inventory_hostname].instance_data.roles.k8s_master is defined or
+        hostvars[inventory_hostname].instance_data.roles.k8s_node is defined
+
+- name: disable cloud init
+  service:
+    name: "{{ item }}"
+    state: stopped
+    enabled: no
+  with_items:
+  - cloud-config
+  - cloud-final
+  - cloud-init-local
+  - cloud-init
+  - cloud-config
+  ignore_errors: yes
+
+# ansible<3 detects ansible_os_family as Rocky and ansible==6.x detects it as RedHat
+# so include RedHat explicitly by ansible_distribution var (it's same for both versions)
+- name: rocky specific package install
+  include_tasks: "RedHat.yml"
+  when:
+    - ansible_distribution == 'Rocky'
+# and leave other distributions as is
+- name: OS specific package install
+  include_tasks: "{{ ansible_os_family }}.yml"
+  when:
+    - ansible_distribution != 'Rocky'
+
+- name: Set up ntp
+  include_tasks: ntp.yml
+  when: provider_data.ntpserver is defined
+
+# ansible<3 detects ansible_os_family as Rocky and ansible==6.x detects it as RedHat
+# so include RedHat explicitly by ansible_distribution var (it's same for both versions)
+- name: rocky specific kernel install, grub modifications, reboot
+  include_tasks: "RedHat_kernel.yml"
+  when:
+    - ansible_distribution == 'Rocky'
+# and leave other distributions as is
+- name: OS specific kernel install, grub modifications, reboot
+  include_tasks: "{{ ansible_os_family }}_kernel.yml"
+  when:
+    - ansible_distribution != 'Rocky'
+
+- name: Manage /etc/hosts
+  include_tasks: manage_etc_hosts.yml
+  when: provider_data.manage_etc_hosts | default("True") | bool
+
+- name: create log file directory
+  file:
+   dest: /var/log/docker/contrail
+   state: directory
+   mode: 0777
+
+- name: Enable bridge-netfilter
+  modprobe:
+    name: br_netfilter
+
+- name: sysctl -w net.bridge.bridge-nf-call-iptables=1
+  shell: sysctl -w net.bridge.bridge-nf-call-iptables=1 && echo "net.bridge.bridge-nf-call-iptables=1" >> /etc/sysctl.conf
+
+- name: sysctl -w net.bridge.bridge-nf-call-ip6tables=1
+  shell: sysctl -w net.bridge.bridge-nf-call-ip6tables=1 && echo "net.bridge.bridge-nf-call-ip6tables=1" >> /etc/sysctl.conf
+
+- name: configure tcp_keepalive_time
+  sysctl:
+    name: net.ipv4.tcp_keepalive_time
+    value: 15
+    sysctl_set: yes
+
+- name: configure tcp_keepalive_intvl
+  sysctl:
+    name: net.ipv4.tcp_keepalive_intvl
+    value: 15
+    sysctl_set: yes
+
+- name: configure tcp_keepalive_probes
+  sysctl:
+    name: net.ipv4.tcp_keepalive_probes
+    value: 5
+    sysctl_set: yes
+
+- name: set firewall service name
+  set_fact:
+    firewall_svc_name: "{{ 'ufw' if ansible_os_family == 'Debian' else 'firewalld' }}"
+
+- name: stop and disable firewall service
+  service:
+    name: "{{ firewall_svc_name }}"
+    state: stopped
+    enabled: no
+  ignore_errors: yes
+
+- name: accept input
+  shell: iptables -P INPUT ACCEPT
+  ignore_errors: yes
+
+- name: accept forward
+  shell: iptables -P FORWARD ACCEPT
+  ignore_errors: yes

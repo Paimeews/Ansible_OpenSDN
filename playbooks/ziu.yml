@@ -1,0 +1,3 @@
+---
+# ZIU have three stages: controller -> openstack -> compute
+  - import_playbook: "ziu_{{ stage }}.yml"

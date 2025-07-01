@@ -1,0 +1,129 @@
+version: '2.4'
+volumes:
+ config_cassandra:
+ config_zookeeper:
+services:
+  node-init:
+    image: "{{ container_registry }}/opensdn-node-init:{{ contrail_version_tag }}"
+    env_file: /etc/contrail/common_config_database.env
+    environment:
+      - CONTRAIL_STATUS_IMAGE="{{ container_registry }}/opensdn-status:{{ contrail_version_tag }}"
+    privileged: true
+    pid: host
+    network_mode: "host"
+    volumes:
+      {{ common_volumes | to_yaml | indent(width=6) }}
+  nodemgr:
+    image: "{{ container_registry }}/opensdn-nodemgr:{{ contrail_version_tag }}"
+    env_file: /etc/contrail/common_config_database.env
+    environment:
+      - NODE_TYPE=config-database
+      - CASSANDRA_CQL_PORT=9041
+      - CASSANDRA_JMX_LOCAL_PORT=7201
+    network_mode: "host"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    volumes_from:
+      - node-init
+    depends_on:
+      - node-init
+    restart: always
+    stdin_open: {{ contrail_configuration.STDIN_OPEN }}
+    tty: {{ contrail_configuration.TTY }}
+    logging:
+      driver: "{{ config_db_log_driver }}"
+      options:
+        max-size: "{{ config_db_log_max_size }}"
+        max-file: "{{ config_db_log_max_file }}"
+  provisioner:
+    image: "{{ container_registry }}/opensdn-provisioner:{{ contrail_version_tag }}"
+    env_file:
+      - /etc/contrail/common_config_database.env
+      - /etc/contrail/defaults.env
+    environment:
+      - NODE_TYPE=config-database
+    network_mode: "host"
+    volumes_from:
+      - node-init
+    depends_on:
+      - node-init
+    restart: always
+    stdin_open: {{ contrail_configuration.STDIN_OPEN }}
+    tty: {{ contrail_configuration.TTY }}
+    logging:
+      driver: "{{ config_db_log_driver }}"
+      options:
+        max-size: "{{ config_db_log_max_size }}"
+        max-file: "{{ config_db_log_max_file }}"
+  cassandra:
+    image: "{{ container_registry }}/opensdn-external-cassandra:{{ contrail_version_tag }}"
+    env_file: /etc/contrail/common_config_database.env
+    cap_add:
+      - SYS_NICE
+    environment:
+      - CASSANDRA_SEEDS={{ cassandra_seeds }}
+      - CASSANDRA_START_RPC=true
+      - CASSANDRA_CLUSTER_NAME=contrail_database
+      - CASSANDRA_PORT=9161
+      - CASSANDRA_CQL_PORT=9041
+      - CASSANDRA_SSL_STORAGE_PORT=7013
+      - CASSANDRA_STORAGE_PORT=7012
+      - CASSANDRA_JMX_LOCAL_PORT=7201
+      - NODE_TYPE=config-database
+{% if reaper_enabled %}
+      - CASSANDRA_REAPER_ENABLED=true
+      - CASSANDRA_REAPER_APP_PORT=8071
+      - CASSANDRA_REAPER_ADM_PORT=8072
+{% endif %}
+    volumes:
+      - /etc/hosts:/etc/hosts
+      - config_cassandra:/var/lib/cassandra/data
+      - /etc/contrail/ssl:/etc/contrail/ssl
+      - /var/log/contrail/config-database:/var/log/cassandra
+    network_mode: "host"
+    logging:
+      driver: "{{ config_db_log_driver }}"
+      options:
+        max-size: "{{ config_db_log_max_size }}"
+        max-file: "{{ config_db_log_max_file }}"
+    restart: always
+  zookeeper:
+    image: "{{ container_registry }}/opensdn-external-zookeeper:{{ contrail_version_tag }}"
+    env_file: /etc/contrail/common_config_database.env
+    environment:
+      - ZOOKEEPER_NODES={{ zookeeper_nodes }}
+      - ZOOKEEPER_PORTS=2888:3888
+      - ZOOKEEPER_PORT=2181
+      - NODE_TYPE=config-database
+    volumes:
+      - /etc/hosts:/etc/hosts
+      - config_zookeeper:/data
+      - /var/log/contrail/zookeeper:/var/log/zookeeper
+    logging:
+      driver: "{{ config_db_log_driver }}"
+      options:
+        max-size: "{{ config_db_log_max_size }}"
+        max-file: "{{ config_db_log_max_file }}"
+    network_mode: "host"
+    restart: always
+  rabbitmq:
+    image: "{{ container_registry }}/opensdn-external-rabbitmq:{{ contrail_version_tag }}"
+    env_file: /etc/contrail/common_config_database.env
+    environment:
+      - RABBITMQ_NODES={{ rabbitmq_nodes }}
+      - RABBITMQ_ERLANG_COOKIE=abcdefg
+      - NODE_TYPE=config-database
+      - RABBITMQ_LOGS=/var/log/contrail/config-database-rabbitmq/rabbitmq.log
+      - RAMMITMQ_SASL_LOGS=/var/log/contrail/config-database-rabbitmq/rabbitmq_sasl.log
+    volumes:
+      - /etc/contrail/ssl:/etc/contrail/ssl
+      - /var/log/contrail/rabbitmq:/var/log/rabbitmq
+    volumes_from:
+      - node-init
+    logging:
+      driver: "{{ config_db_log_driver }}"
+      options:
+        max-size: "{{ config_db_log_max_size }}"
+        max-file: "{{ config_db_log_max_file }}"
+    network_mode: "host"
+    restart: always
